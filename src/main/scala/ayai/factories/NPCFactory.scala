@@ -61,7 +61,7 @@ object NPCFactory {
           val questBag = new QuestBag()
           questBag.addQuest(quest)
           ent.components += questBag
-        case _ => 
+        case _ =>
       }
 
       val equipment: Equipment = new Equipment()

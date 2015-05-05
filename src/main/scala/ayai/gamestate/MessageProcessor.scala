@@ -277,11 +277,24 @@ class MessageProcessor(world: RoomWorld) extends Actor {
           case Some(e: Entity) => e.getComponent(classOf[QuestBag]) match {
             case Some(questBag: QuestBag) =>
               var tempQuest: Quest = null
-              for(quest <- questBag.quests) {
+              /*for(quest <- questBag.quests) {
                 if (quest.id == questId) {
                   tempQuest = quest
                 }
+              }*/
+              tempQuest = questBag.removeQuest( questId )
+
+              // add a generate quest message if there aren't any left.
+              println( "ANDREW: Adding quest generation request" )
+              if ( questBag.quests.isEmpty ) {
+                 world.getEntityByTag(userId) match {
+                   case Some(userEntity: Entity) =>
+                     val generateRequest: GenerateQuest = new GenerateQuest (e, userEntity )
+                     e.components += generateRequest
+                 }
               }
+
+              println( "ANDREW: Quest generation request added" )
               tempQuest
             case _ => null
           }
@@ -346,10 +359,16 @@ class MessageProcessor(world: RoomWorld) extends Actor {
                 quests.asJson
               case (Some(quests: QuestBag), None) =>
                 typename = quests.typename
-                //fix this for a list
+                //if (!quests.quests.isEmpty) {
+                  //("quest" -> quests.dequeueQuest() )
+                  //("entityId" -> entityId)
+
+                  //fix this for a list
                 if (!quests.quests.isEmpty) {
-                  ("quest" -> quests.quests(0).asJson) ~
+                  //("quest" -> quests.asJson) ~
+                  ("quest" -> quests.quests.last.asJson())~ //quests.quests.last.asJson) ~
                   ("entityId" -> entityId)
+
                 } else {
                   quests.asJson
                 }

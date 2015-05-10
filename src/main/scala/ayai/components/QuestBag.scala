@@ -22,27 +22,11 @@ case class QuestBag(quests: ArrayBuffer[Quest] = new ArrayBuffer[Quest]()) exten
     }
   }
 
-  def removeQuest(id: Int) : Quest = {
+  def removeQuest(id: Int) : Option[Quest] = {
     println("Quest with ID: " + id + " Removed from Bag" )
 
-    for(quest <- quests) {
-      if (quest.id == id) {
-        return quests.remove( quests.indexOf(quest) )
-      }
-    }
-    return null
+    val index = quests.indexWhere( _.id == id )
+    if ( index >= 0 ) Some(quests.remove( index )) else None
   }
-
-  /*
-  def dequeueQuest() : Quest = {
-    println( "ANDREW: Deququing quest" );
-    // if our quest bag is empty, just return null for now.
-    if ( quests.isEmpty ) {
-      return null
-    }
-
-    // then just pop the first one off the queue.
-    return quests.remove(0);
-  }*/
 
 }

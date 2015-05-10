@@ -6,7 +6,7 @@ import scala.collection.mutable.ListBuffer
 
 import ayai.gamestate.AddQuest
 import crane.{Entity, EntityProcessingSystem}
-
+import scala.util.Random
 import java.rmi.server.UID
 
 import scala.collection.mutable.ArrayBuffer
@@ -43,32 +43,40 @@ class QuestGenerationSystem(actorSystem: ActorSystem) extends EntityProcessingSy
 
               // next, we need to populate our quest with objectives. To do this, we'll find the most "significant" thing
               // in an NPC's memory and build objectives based on that.
-              var mostSignificantMemory: MemoryContents = null
-              for (memory <- initiatorMemory.entitiesRemembered) {
-                if (math.abs(memory.relationship) > math.abs(mostSignificantMemory.relationship)) {
-                  mostSignificantMemory = memory
+              println("ANDREW: Retrieving most significant memory for NPC")
+              val mostSignficantMemory: Option[MemoryContents] = {
+                if (initiatorMemory.entitiesRemembered.nonEmpty) {
+                  Some(initiatorMemory.entitiesRemembered.maxBy(memory => math.abs(memory.relationship)))
+                } else {
+                  None
                 }
               }
 
               // next, we can decide whether that thing is "negative" or "positive". If it's negative, the NPC will want that
-              // thing to be killed or something. If it's positive, maybe you should bring it to them.
-              if ( mostSignificantMemory != null ) {
-                if ( mostSignificantMemory.relationship > 0 ) {
+              // thing to be killed or something. If it's positive, maybe you should bring it to them for now. This will be updated
+              // to select a random quest type, weighted by player preferences in the future, but for testing it's just the two.
+              println("ANDREW: Building objectives based on significant memories")
+              mostSignficantMemory.map(memory => {
+                // this is how unique entities are found in other parts of the codebase. I'm not really sure why its
+                // done through tags, rather than just having a "getEntityById", but
+                val targetID = memory.entityID
+                val target = e.world.get.getEntityByTag(s"$targetID")
+
+                if (memory.relationship > 0) {
                   // positive relationship quests
-                  objectives += new FetchObjective( "Fetch A thing", "Get this", "Bring it here" )
-                }else{
+                  // for now, the fetch target is the initiator themself, as the remembered entity isn't stored with a string ID that we can directly plug in.
+                  objectives += new FetchObjective("Fetch TARGET_NAME", /*Memory ID should be a string memory.entityID*/ genQuest.initiator.uuid, genQuest.initiator.uuid)
+                } else {
                   // negative relationship quests.
-                  objectives += new KillObjective( "Get Entity Name from Passed ID Here", 0, 10 )
+                  objectives += new KillObjective("Eliminate TARGET_NAME", 0, 10)
                 }
-              }else{
-                // this character has literally nothing on his mind... Umm... I guess return null?
-                return null
-              }
+              })
 
               // so... yeah, sorry about this! Each quest needs an integer ID, preferably one that doesn't conflict with
-              // any others. Time's pretty much contiguous, so as long as you don't try and run this game for more than 24 days,
-              // at a time, we should be good! Fix this as soon as possible.
-              val id = new Date().getTime().toInt
+              // any others. For now, this solution just chooses a random integer. For most purposes, the odds of a collision
+              // is incredibly slim, and it should function just fine. Note however that there is no guarantee that each ID is
+              // unique, and if this game were actually run on a server for a long time, a collision would be likely.
+              val id = new Random().nextInt(Int.MaxValue - 1)
 
               // create a blank quest which we'll populate in a minute.
               val questComponent = new Quest(
@@ -80,6 +88,7 @@ class QuestGenerationSystem(actorSystem: ActorSystem) extends EntityProcessingSy
               )
 
               // add a new quest to the quest bag of the initiator!
+              print("ANDREW: Adding quest to quest bag")
               genQuest.initiator.getComponent(classOf[QuestBag]) match {
                 case Some(questBag: QuestBag) =>
                   questBag.addQuest(questComponent)

@@ -276,26 +276,25 @@ class MessageProcessor(world: RoomWorld) extends Actor {
         val npcQuest: Quest = world.getEntityByTag(s"$entityId") match {
           case Some(e: Entity) => e.getComponent(classOf[QuestBag]) match {
             case Some(questBag: QuestBag) =>
-              var tempQuest: Quest = null
+              //var tempQuest: Quest = null
               /*for(quest <- questBag.quests) {
                 if (quest.id == questId) {
                   tempQuest = quest
                 }
               }*/
-              tempQuest = questBag.removeQuest( questId )
+              var tmpQuest = questBag.removeQuest( questId ).getOrElse(null)
 
               // add a generate quest message if there aren't any left.
               println( "ANDREW: Adding quest generation request" )
               if ( questBag.quests.isEmpty ) {
                  world.getEntityByTag(userId) match {
                    case Some(userEntity: Entity) =>
-                     val generateRequest: GenerateQuest = new GenerateQuest (e, userEntity )
-                     e.components += generateRequest
+                     e.components += new GenerateQuest (e, userEntity)
                  }
               }
 
               println( "ANDREW: Quest generation request added" )
-              tempQuest
+              tmpQuest
             case _ => null
           }
           case _ => null

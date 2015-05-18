@@ -1,54 +1,58 @@
 package ayai.systems
 
-import ayai.actions.AttackAction
-import ayai.components._
-import ayai.components.SoundEntity
-
 import akka.actor.ActorSystem
-
-import crane.{Entity, EntityProcessingSystem}
-
-import org.slf4j.{Logger, LoggerFactory}
+import ayai.components.{SoundEntity, _}
+import ayai.systems.ai.perception.PerceptionSystem
+import crane.Entity
 
 object SoundSystem {
   def apply(actorSystem: ActorSystem) = new SoundSystem(actorSystem)
 }
 
-class SoundSystem(actorSystem: ActorSystem) extends EntityProcessingSystem(include=List(classOf[Hearing])) {
-  private val log = LoggerFactory.getLogger(getClass)
-  private val spamLog = false
-
+class SoundSystem(actorSystem: ActorSystem) extends GenericPerceptionSystem(actorSystem, include=List(classOf[Hearing])) {
   override def processEntity(e: Entity, deltaTime: Int): Unit = {
-    (e.getComponent(classOf[Position]), e.getComponent(classOf[Bounds]),
-      e.getComponent(classOf[SoundProducing]), e.getComponent(classOf[Actionable])) match {
-      case (Some(soundPosition: Position), Some(bounds: Bounds), Some(soundProd: SoundProducing), Some(actionable: Actionable)) => {
-        if (actionable.active) {
+    if (counter == TICKS_BETWEEN_PROCESSING) {
+      var soundProducingEntity = e
+      (soundProducingEntity.getComponent(classOf[Position]), soundProducingEntity.getComponent(classOf[Bounds]),
+        soundProducingEntity.getComponent(classOf[SoundProducing]), soundProducingEntity.getComponent(classOf[Actionable])) match {
+        case (Some(soundPosition: Position), Some(bounds: Bounds), Some(soundProd: SoundProducing), Some(actionable: Actionable)) => {
+          if (actionable.active) {
 
-          val soundEntity = new SoundEntity(soundProd.intensity, soundPosition)
+            val soundEntity = new SoundEntity(soundProd.intensity, soundPosition)
 
-          var hearingEntities = world.getEntitiesWithExclusions(include=List(classOf[Position], classOf[Bounds], classOf[Hearing]),
-            exclude=List(classOf[Respawn], classOf[Transport], classOf[Dead]))
+            val hearingEntities = world.getEntitiesWithExclusions(include = List(classOf[Position], classOf[Bounds], classOf[Hearing]),
+              exclude = List(classOf[Respawn], classOf[Transport], classOf[Dead]))
 
-          for (entity <- hearingEntities) {
-            (entity.getComponent(classOf[Position]), entity.getComponent(classOf[Hearing])) match {
-              case (Some(hearPosition: Position), Some(hearing : Hearing)) => {
+            for (hearingEntity <- hearingEntities) {
+              (hearingEntity.getComponent(classOf[Position]), hearingEntity.getComponent(classOf[Hearing])) match {
+                case (Some(hearPosition: Position), Some(hearing: Hearing)) => {
 
-                if (e != entity && (soundEntity.intensity * hearing.hearingAbility) > getDistance(soundEntity.origin, hearPosition)) {
+                  if (soundProducingEntity != hearingEntity && (soundEntity.intensity * hearing.hearingAbility) > getDistance(soundEntity.origin, hearPosition)) {
 
-                  (e.getComponent(classOf[Character]),
-                    entity.getComponent(classOf[Character])) match {
-                    case (Some(char1: Character), Some(char2: Character)) => {
+                    (soundProducingEntity.getComponent(classOf[Character]),
+                      hearingEntity.getComponent(classOf[Character])) match {
+                      case (Some(char1: Character), Some(char2: Character)) => {
 
-                      if (spamLog) log.warn(char2.name + " hears " + char1.name)
-
+                        val msg = char2.name + " hears " + char1.name
+                        val evt = new PerceptionEvent(soundProducingEntity, hearingEntity, msg, SoundSystem)
+                        if (spamLog) log.warn(msg)
+                        PerceptionSystem(actorSystem).publish(evt)
+                      }
+                      case _ =>
                     }
                   }
                 }
+                case _ =>
               }
             }
           }
         }
+        case _ =>
       }
+      counter = 0
+    }
+    else {
+      counter+=1
     }
   }
 
@@ -56,10 +60,12 @@ class SoundSystem(actorSystem: ActorSystem) extends EntityProcessingSystem(inclu
 
   }
 
-  def getDistance(p1: Position, p2 : Position): Int = {
-    var result = 0
-    result += math.abs(p1.x - p2.x)
-    result += math.abs(p1.y - p2.y)
-    result
+  def getDistance(p1: Position, p2: Position): Int = {
+    // Manhattan distance
+    math.abs(p1.x - p2.x) + math.abs(p1.y - p2.y)
+  }
+
+  override def notify(evt: PerceptionEvent): Unit = {
+    if (spamLog) log.warn("Event Received: "+evt.evtMsg)
   }
 }

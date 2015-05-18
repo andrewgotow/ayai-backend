@@ -44,31 +44,46 @@ class QuestGenerationSystem(actorSystem: ActorSystem) extends EntityProcessingSy
               // next, we need to populate our quest with objectives. To do this, we'll find the most "significant" thing
               // in an NPC's memory and build objectives based on that.
               println("ANDREW: Retrieving most significant memory for NPC")
-              val mostSignficantMemory: Option[MemoryContents] = {
-                if (initiatorMemory.entitiesRemembered.nonEmpty) {
-                  Some(initiatorMemory.entitiesRemembered.maxBy(memory => math.abs(memory.relationship)))
+              val mostSignficantMemory: Option[MemoryItem] = {
+                if (initiatorMemory.memoryContents.nonEmpty) {
+                  Some(initiatorMemory.memoryContents.maxBy(memory => math.abs(memory.relationship)))
                 } else {
                   None
                 }
               }
+
+              var questTitle = ""
+              var questDescription = ""
 
               // next, we can decide whether that thing is "negative" or "positive". If it's negative, the NPC will want that
               // thing to be killed or something. If it's positive, maybe you should bring it to them for now. This will be updated
               // to select a random quest type, weighted by player preferences in the future, but for testing it's just the two.
               println("ANDREW: Building objectives based on significant memories")
               mostSignficantMemory.map(memory => {
-                // this is how unique entities are found in other parts of the codebase. I'm not really sure why its
-                // done through tags, rather than just having a "getEntityById", but
-                val targetID = memory.entityID
-                val target = e.world.get.getEntityByTag(s"$targetID")
+
+                val target = memory.entity
+                var name = "NO NAME"
+
+                target.getComponent(classOf[Character]) match {
+                  case Some(character: Character) =>
+                    name = character.name
+                }
+                /*target.getComponent(classOf[Item]) match {
+                  case Some(item: Item) =>
+                    name = item.name
+                }*/
 
                 if (memory.relationship > 0) {
                   // positive relationship quests
                   // for now, the fetch target is the initiator themself, as the remembered entity isn't stored with a string ID that we can directly plug in.
-                  objectives += new FetchObjective("Fetch TARGET_NAME", /*Memory ID should be a string memory.entityID*/ genQuest.initiator.uuid, genQuest.initiator.uuid)
+                  objectives += new FetchObjective("Fetch " + name, genQuest.initiator.uuid, genQuest.initiator.uuid)
+                  questTitle = "Bring me " + name
+                  questDescription += "That " + name + " looks pretty great. If you could bring it to me, That'd be wonderful!"
                 } else {
                   // negative relationship quests.
-                  objectives += new KillObjective("Eliminate TARGET_NAME", 0, 10)
+                  objectives += new KillObjective("Kill " + name, 0, 1)
+                  questTitle = "Eliminate " + name
+                  questDescription += name + " has been a thorn in my side for far too long. Find him, and kill him."
                 }
               })
 
@@ -81,8 +96,8 @@ class QuestGenerationSystem(actorSystem: ActorSystem) extends EntityProcessingSy
               // create a blank quest which we'll populate in a minute.
               val questComponent = new Quest(
                 id, // id
-                "hello", // title
-                "do a thing", // description
+                questTitle, // title
+                questDescription, // description
                 12, // recommended level
                 objectives.toList // objectives
               )
